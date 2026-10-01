@@ -28,7 +28,9 @@ control**.
      (`VAULT_CACERT`/`BAO_CACERT`; `*_SKIP_VERIFY=1` is exceptional and logged).
   3. **OS keyring** — `@napi-rs/keyring` (optional native dep; soft-fail if
      missing). Service name `imap-mcp`. Also holds the file-store DEK when
-     available.
+     available. Platform setup (Windows Credential Manager, macOS Keychain,
+     Ubuntu 24.04 / 26.04 libsecret) is documented in
+     [docs/KEYRING.md](./docs/KEYRING.md).
   4. **Encrypted file store** — `~/.imap-mcp/accounts.json` with **AES-256-GCM**
      (AAD-bound per account/field). Prefer DEK in the OS keyring; a co-located
      `~/.imap-mcp/.key` remains a **legacy / headless fallback** (obfuscation at
@@ -62,6 +64,7 @@ control**.
 - Use **app-specific passwords** where your provider supports them (Gmail,
   iCloud, Yahoo, Fastmail, …) instead of your primary password.
 - Prefer **env overrides**, **Vault/OpenBao**, or the **OS keyring** over the file store.
+  See [docs/KEYRING.md](./docs/KEYRING.md) for OS-specific setup.
 - After migrating from CBC, remove `~/.imap-mcp/.key` only once you confirm GCM reads succeed.
 - Keep `~/.imap-mcp/` readable only by your user account.
 - Do not run the web wizard with `IMAP_MCP_BIND=0.0.0.0` on shared/multi-user
