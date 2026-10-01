@@ -357,6 +357,7 @@ export class WebUIServer {
   }
 
   async start(autoOpen: boolean = true): Promise<void> {
+    await this.accountManager.hydrateExternalCredentials();
     return new Promise((resolve) => {
       if (this.bindHost !== '127.0.0.1' && this.bindHost !== 'localhost' && this.bindHost !== '::1') {
         console.warn(
