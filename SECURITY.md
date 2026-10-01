@@ -17,14 +17,28 @@ control**.
 - **Filesystem jail.** Attachment `path` values and download `savePath` values
   are confined to `IMAP_DOWNLOAD_DIR` (and optional `IMAP_ATTACHMENT_DIRS`).
   The credential store (`~/.imap-mcp`) is never readable via attachment paths.
-- **Credential storage.** IMAP/SMTP credentials in `~/.imap-mcp/accounts.json`
-  are obfuscated at rest with **AES-256-CBC**. The key is generated locally and
-  kept at `~/.imap-mcp/.key` **next to** the ciphertext. Anyone who can read
-  both files can recover plaintext passwords — this is **not** a vault or OS
-  keyring. Prefer environment-injected credentials
-  (`IMAP_MCP_ACCOUNT_*`) or an OS keyring for real secret management. The store
-  directory and both files are written owner-only (`0700`/`0600`) so other local
-  users cannot read them on POSIX.
+- **Credential storage.** Runtime resolution order (first hit wins):
+  1. **Environment** — `IMAP_MCP_ACCOUNT_*` overrides captured at startup and
+     scrubbed from `process.env`.
+  2. **Vault / OpenBao** — only for accounts that opt in (`credentialSource:
+     "vault"` and/or `vaultPath`) when `VAULT_ADDR`/`BAO_ADDR` plus token or
+     AppRole auth is configured. `IMAP_MCP_VAULT_PATH` is a path template for
+     opted-in accounts, not ambient reroute. Beats OS keyring for those
+     accounts so central rotation/revocation wins. TLS verify is on by default
+     (`VAULT_CACERT`/`BAO_CACERT`; `*_SKIP_VERIFY=1` is exceptional and logged).
+  3. **OS keyring** — `@napi-rs/keyring` (optional native dep; soft-fail if
+     missing). Service name `imap-mcp`. Also holds the file-store DEK when
+     available.
+  4. **Encrypted file store** — `~/.imap-mcp/accounts.json` with **AES-256-GCM**
+     (AAD-bound per account/field). Prefer DEK in the OS keyring; a co-located
+     `~/.imap-mcp/.key` remains a **legacy / headless fallback** (obfuscation at
+     rest — anyone who can read key + ciphertext recovers passwords). Set
+     `IMAP_MCP_ALLOW_FILE_KEY=0` to refuse creating a new co-located key.
+  Legacy AES-256-CBC ciphertext is still readable; migrate with
+  `IMAP_MCP_MIGRATE_CREDENTIALS=1` or `migrateLegacyCiphertext()` — `.key` is
+  **not** auto-deleted. Post-quantum KEM wrapping was considered and **skipped**
+  (theater for this endpoint threat model; DEK custody is the real boundary).
+  Store directory/files are owner-only (`0700`/`0600`) on POSIX.
 - **Web setup wizard.** Binds **127.0.0.1** by default. Set
   `IMAP_MCP_BIND=0.0.0.0` only on trusted networks. Host/Origin loopback checks
   remain in place; the API is still unauthenticated for local clients.
@@ -47,7 +61,8 @@ control**.
 - Leave the **default read-only** tool surface unless you need send/delete.
 - Use **app-specific passwords** where your provider supports them (Gmail,
   iCloud, Yahoo, Fastmail, …) instead of your primary password.
-- Prefer **env credential overrides** over storing passwords in `accounts.json`.
+- Prefer **env overrides**, **Vault/OpenBao**, or the **OS keyring** over the file store.
+- After migrating from CBC, remove `~/.imap-mcp/.key` only once you confirm GCM reads succeed.
 - Keep `~/.imap-mcp/` readable only by your user account.
 - Do not run the web wizard with `IMAP_MCP_BIND=0.0.0.0` on shared/multi-user
   hosts or untrusted LANs.
